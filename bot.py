@@ -701,5 +701,5 @@ def main() -> None:
     logger.info("Bot started.")
     app.run_polling(close_loop=False)
 
-if name == "__main__":
+if __name__ == "__main__":
     application.run_polling()
