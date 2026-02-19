@@ -702,4 +702,4 @@ def main() -> None:
     app.run_polling(close_loop=False)
 
 if name == "__main__":
-    app.run_polling()
+    application.run_polling()
