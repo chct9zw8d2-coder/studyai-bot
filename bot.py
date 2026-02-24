@@ -130,13 +130,13 @@ def maybe_personal_offer(update: Update, context: ContextTypes.DEFAULT_TYPE, pla
     focus = db.get_top_focus(uid)
     focus_text = focus_to_text(focus)
     text_used = int(usage.get("text_used", 0) or 0)
-    img_used = int(usage.get("img_used", 0) or 0)
+    photo_used = int(usage.get("photo_used", 0) or 0)
 
     plan = PLANS.get(plan_key, PLANS.get("free"))
     daily_text = int(plan.get("daily_text", 0) or 0)
-    daily_img = int(plan.get("daily_img", 0) or 0)
+    daily_photo = int(plan.get("daily_photo", plan.get("daily_img", 0)) or 0)
 
-    promo_kind, target_plan = choose_offer(plan_key, text_used, img_used, daily_text, daily_img)
+    promo_kind, target_plan = choose_offer(plan_key, text_used, photo_used, daily_text, daily_photo)
     if not promo_kind:
         return
 
@@ -517,7 +517,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer()
     lang = get_lang(update, context)
     data = q.data
-
+    uid = q.from_user.id
 
     # Full breakdown on demand (two-level answers)
     if data == "action:expand":
@@ -803,7 +803,11 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data=="chill:show":
         ans = context.user_data.get("chill_answer") or context.user_data.get("game_answer") or "—"
-        await q.answer(ans, show_alert=True)
+        await q.answer()
+        try:
+            await q.message.reply_text(f"Ответ: {ans}")
+        except Exception:
+            pass
         return
 
     if data=="menu:admin":
@@ -828,8 +832,10 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📊 Дашборд\n\n"
             f"👥 Всего пользователей: <b>{s['total_users']}</b>\n"
             f"✅ Активных сегодня: <b>{s['active_today']}</b>\n"
-            f"💬 Текст-запросов сегодня: <b>{s['text_used']}</b>\n"
-            f"📸 Фото-разборов сегодня: <b>{s['img_used']}</b>"
+            f"💬 Текст-запросов сегодня: <b>{s['text_used']}</b>\n"\
+            f"📸 Фото-разборов сегодня: <b>{s.get('photo_used', 0)}</b>\n"\
+            f"  • ДЗ по фото: <b>{s.get('photo_dz', 0)}</b>\n"\
+            f"  • Оценка по фото: <b>{s.get('photo_grade', 0)}</b>"
         )
         await q.edit_message_text(
             msg,
@@ -918,21 +924,22 @@ async def send_profile(q, context, lang: str):
     uid = q.from_user.id
     user = db.get_user(uid)
     if not user:
-        await q.edit_message_text(tr(lang,"error_generic"), reply_markup=main_menu(lang, update.effective_user.id)); return
+        await q.edit_message_text(tr(lang,"error_generic"), reply_markup=main_menu(lang, uid)); return
     if is_owner(uid):
-        msg = f"<b>{tr(lang,'profile')}</b>\\n{tr(lang,'plan')}: <b>OWNER</b>\\n{tr(lang,'today')}:\\n— text: ∞\\n— фото: ∞"
+        msg = f"<b>{tr(lang,'profile')}</b>\n{tr(lang,'plan')}: <b>OWNER</b>\n{tr(lang,'today')}:\n— text: ∞\n— фото: ∞"
         await q.edit_message_text(msg, reply_markup=profile_menu(lang), parse_mode=ParseMode.HTML); return
 
-    plan, p, text_left, img_left, _, _ = db.remaining_today(uid)
+    plan, p, text_left, photo_left, *_rest = db.remaining_today(uid)
+    usage = _rest[-1] if _rest else {}
     sub_until = user.get("sub_until")
     sub_str = sub_until.strftime("%Y-%m-%d") if sub_until else "-"
     msg = (
-        f"<b>{tr(lang,'profile')}</b>\\n"
-        f"{tr(lang,'plan')}: <b>{plan.upper()}</b>\\n"
-        f"{tr(lang,'until')}: {sub_str}\\n\\n"
-        f"{tr(lang,'today')}:\\n"
-        f"— text: {tr(lang,'left')} {text_left}\\n"
-        f"— фото-разборы: {tr(lang,'left')} {img_left}\\n"
+        f"<b>{tr(lang,'profile')}</b>\n"
+        f"{tr(lang,'plan')}: <b>{plan.upper()}</b>\n"
+        f"{tr(lang,'until')}: {sub_str}\n\n"
+        f"{tr(lang,'today')}:\n"
+        f"— text: {tr(lang,'left')} {text_left}\n"
+        f"— фото-разборы: {tr(lang,'left')} {photo_left}\n"
     )
     await q.edit_message_text(msg, reply_markup=profile_menu(lang), parse_mode=ParseMode.HTML)
 
@@ -1025,7 +1032,7 @@ async def successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE)
             pk = promo.get('promo_kind')
             bonus = PROMO_BONUSES.get(pk) or {}
             if bonus:
-                db.add_bonus(uid, bonus.get('add_text',0), bonus.get('add_img',0))
+                db.add_bonus(uid, bonus.get('add_text',0), bonus.get('add_photo', bonus.get('add_img',0)))
             db.clear_promo(uid)
     elif kind=="topup":
         if key=="week_pack":
@@ -1035,11 +1042,11 @@ async def successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 db.log_offer_event(uid or 0, "impression", "week_deal", var)
             except Exception:
                 pass
-            db.add_bonus(uid, deal.get("add_text",0), deal.get("add_img",0))
+            db.add_bonus(uid, deal.get("add_text",0), deal.get("add_photo", deal.get("add_img",0)))
         else:
             item = TOPUPS.get(key)
             if item:
-                db.add_bonus(uid, item.get("add_text",0), item.get("add_img",0))
+                db.add_bonus(uid, item.get("add_text",0), item.get("add_photo", item.get("add_img",0)))
 
     await update.message.reply_text(tr(lang,"paid_ok"), reply_markup=main_menu(lang, update.effective_user.id))
 
@@ -1103,8 +1110,8 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(update, context)
     trial_free_grade_photo = False
     if not is_owner(uid):
-        plan, p, text_left, img_left, *_ = db.remaining_today(uid)
-        if img_left <= 0:
+        plan, p, text_left, photo_left, usage = db.remaining_today(uid)
+        if photo_left <= 0:
             if mode == "grade" and hasattr(db, "is_grade_photo_trial_used") and (not db.is_grade_photo_trial_used(uid)):
                 # One-time free photo grading (doesn't consume quota)
                 try:
@@ -1116,7 +1123,7 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(tr(lang, "photo_limit_msg"), reply_markup=photo_offer_keyboard(lang))
                 return
         else:
-            db.inc_usage(uid, "img", 1)
+            db.inc_usage(uid, "photo", 1)
 
     caption = (update.message.caption or "").strip()
     user_hint = clamp_text(caption) if caption else ""
@@ -1191,6 +1198,15 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.add_history(uid, kind, prompt, reply, subject=subj)
     except Exception:
         pass
+    subj = extract_subject(reply)
+    try:
+        db.inc_activity(uid, "text_dz", subject=subj)
+    except Exception:
+        pass
+    try:
+        db.inc_activity(uid, "photo_grade" if mode == "grade" else "photo_dz", subject=subj)
+    except Exception:
+        pass
     await update.message.reply_text(reply, reply_markup=full_breakdown_keyboard())
 
     if trial_free_grade_photo:
@@ -1204,7 +1220,7 @@ async def handle_study(update: Update, context: ContextTypes.DEFAULT_TYPE, promp
     lang = get_lang(update, context)
     uid = update.effective_user.id
     try:
-        db.inc_activity(uid, "study")
+        db.inc_activity(uid, "text_dz")
     except Exception:
         pass
 
@@ -1273,6 +1289,15 @@ async def handle_study(update: Update, context: ContextTypes.DEFAULT_TYPE, promp
     context.user_data['last_prompt'] = prompt
     context.user_data['last_mode'] = 'study'
 
+    subj = extract_subject(reply)
+    try:
+        db.inc_activity(uid, "text_dz", subject=subj)
+    except Exception:
+        pass
+    try:
+        db.inc_activity(uid, "photo_grade" if mode == "grade" else "photo_dz", subject=subj)
+    except Exception:
+        pass
     await update.message.reply_text(reply, reply_markup=full_breakdown_keyboard())
 
     if early_paywall:
@@ -1294,7 +1319,7 @@ async def handle_grade_text(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     lang = get_lang(update, context)
     uid = update.effective_user.id
     try:
-        db.inc_activity(uid, "grade")
+        db.inc_activity(uid, "text_grade")
     except Exception:
         pass
 
@@ -1357,6 +1382,10 @@ async def handle_grade_text(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     except Exception:
         pass
 
+    try:
+        db.inc_activity(uid, "text_grade", subject=subj)
+    except Exception:
+        pass
     await update.message.reply_text(reply, reply_markup=main_menu(lang, update.effective_user.id))
 
 async def handle_ege(update: Update, context: ContextTypes.DEFAULT_TYPE, prompt: str):
@@ -1366,6 +1395,9 @@ async def handle_ege(update: Update, context: ContextTypes.DEFAULT_TYPE, prompt:
     """
     lang = get_lang(update, context)
     uid = update.effective_user.id
+    msg = update.effective_message  # works for both message and callback query
+
+    # Analytics (best-effort)
     try:
         db.inc_activity(uid, "ege", context.user_data.get("exam"), context.user_data.get("subject"))
     except Exception:
@@ -1377,24 +1409,23 @@ async def handle_ege(update: Update, context: ContextTypes.DEFAULT_TYPE, prompt:
         exam_str = (exam or "ege").upper()
         prompt = f"Контекст: {exam_str}, предмет: {subject_label(subject)}.\nЗапрос: {prompt}"
 
-    soft_paywall = False
-    early_paywall = False
     plan_key = "free"
     max_tokens = MAX_TOKENS.get("free", 900)
     model = DEEPSEEK_MODEL
 
+    # Paywall / limits (text quota)
     if not is_owner(uid):
         plan_key, p, text_left, *_ = db.remaining_today(uid)
         if text_left <= 0:
-            await update.message.reply_text(paywall_message_limit(), reply_markup=paywall_keyboard())
+            await msg.reply_text(paywall_message_limit(), reply_markup=paywall_keyboard())
             return
-        u = db.get_usage(uid)
-        trig_winner = db.get_experiment_winner("paywall_trigger")
-        _, paywall_trigger_count = paywall_trigger_count_for_user(uid, winner=trig_winner)
-        if plan_key == "free" and u.get("text_used", 0) == (paywall_trigger_count - 1):
-            soft_paywall = True
 
-        db.inc_usage(uid, "text", 1)
+        # Increment usage (1 text request)
+        try:
+            db.inc_usage(uid, "text", 1)
+        except Exception:
+            pass
+
         max_tokens = MAX_TOKENS.get(plan_key, 1200)
         model = DEEPSEEK_MODEL_FREE if plan_key == "free" else DEEPSEEK_MODEL
     else:
