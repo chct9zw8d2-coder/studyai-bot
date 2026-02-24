@@ -1,124 +1,102 @@
 import os
 
 # =========================
-# ОСНОВНЫЕ НАСТРОЙКИ
+# TELEGRAM
 # =========================
 
-# Telegram
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
-# Админ
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
 OWNER_USER_ID = int(os.getenv("OWNER_USER_ID", "0"))
-
-# База данных
-DATABASE_URL = os.getenv("DATABASE_URL", "")
-
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
 
 # =========================
-# DeepSeek (текст)
+# DATABASE
+# =========================
+
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+# =========================
+# DEEPSEEK
 # =========================
 
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
-DEEPSEEK_MODEL = os.getenv(
-    "DEEPSEEK_MODEL",
-    "deepseek-chat"
-)
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+DEEPSEEK_VISION_MODEL = os.getenv("DEEPSEEK_VISION_MODEL", "deepseek-chat")
 
-DEEPSEEK_VISION_MODEL = os.getenv(
-    "DEEPSEEK_VISION_MODEL",
-    "deepseek-chat"
-)
-
+TEXT_MODEL = DEEPSEEK_MODEL
 
 # =========================
-# Stability AI (картинки)
+# STABILITY AI (ВАЖНО)
 # =========================
 
 STABILITY_API_KEY = os.getenv("STABILITY_API_KEY", "")
 
-# ВАЖНО: именно этого не хватало
+# ЭТО НУЖНО ДОБАВИТЬ
 STABILITY_ENDPOINT = "https://api.stability.ai"
 
-IMAGE_MODEL = os.getenv(
-    "IMAGE_MODEL",
-    "stable-image-ultra"
-)
-
+IMAGE_MODEL = os.getenv("IMAGE_MODEL", "stable-image-ultra")
 
 # =========================
-# ЛИМИТЫ FREE
+# LIMITS
 # =========================
 
 FREE_TEXT_PER_DAY = int(os.getenv("FREE_TEXT_PER_DAY", "10"))
 FREE_IMG_PER_DAY = int(os.getenv("FREE_IMG_PER_DAY", "3"))
 
-
 # =========================
-# ПОДПИСКИ
+# SUBSCRIPTION
 # =========================
 
-SUB_DAYS = int(os.getenv("SUB_DAYS", "30"))
+SUBSCRIBE_DAYS_DEFAULT = int(os.getenv("SUB_DAYS", "30"))
+
+STARS_CURRENCY = os.getenv("STARS_CURRENCY", "XTR")
+
+PRICE_STARS = int(os.getenv("PRICE_STARS", "299"))
 
 PLANS = {
-    "start": {
+    "START": {
         "name": "START",
-        "price": 299,
-        "stars": 299,
-        "days": 30
+        "price_stars": 299,
+        "days": 30,
+        "text_per_day": 50,
+        "img_per_day": 10
     },
-    "pro": {
+    "PRO": {
         "name": "PRO",
-        "price": 599,
-        "stars": 599,
-        "days": 30
+        "price_stars": 599,
+        "days": 30,
+        "text_per_day": 200,
+        "img_per_day": 50
     },
-    "ultra": {
+    "ULTRA": {
         "name": "ULTRA",
-        "price": 999,
-        "stars": 999,
-        "days": 30
+        "price_stars": 999,
+        "days": 30,
+        "text_per_day": 9999,
+        "img_per_day": 9999
     }
 }
 
-PRICE_STARS = {
-    "start": 299,
-    "pro": 599,
-    "ultra": 999
-}
-
-STARS_CURRENCY = "XTR"
-
-
 # =========================
-# РЕФЕРАЛКА
-# =========================
-
-REF_PERCENT = 0.20
-MIN_PAYOUT_STARS = 100
-PAYOUT_COOLDOWN_HOURS = 24
-REF_REQUIRE_FIRST_PAYMENT = True
-
-
-# =========================
-# ТОПАПЫ
+# TOPUPS
 # =========================
 
 TOPUPS = {
-    "small": 100,
-    "medium": 500,
-    "large": 1000
+    "img_10": 10,
+    "img_50": 50,
+    "img_100": 100
 }
 
-
 # =========================
-# PAYWALL
+# REFERRAL SYSTEM
 # =========================
 
-SUBSCRIBE_DAYS_DEFAULT = 30
-
+REF_PERCENT = 20
+MIN_PAYOUT_STARS = 1000
+PAYOUT_COOLDOWN_HOURS = 24
+REF_REQUIRE_FIRST_PAYMENT = True
 
 # =========================
 # LOG
