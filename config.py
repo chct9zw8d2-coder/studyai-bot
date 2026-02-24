@@ -1,177 +1,138 @@
 # config.py
 import os
 
-
-def _get(name: str, default: str | None = None) -> str | None:
+def _env_str(name: str, default: str = "") -> str:
     v = os.getenv(name)
-    if v is None or v == "":
+    return (v if v is not None else default).strip()
+
+def _env_int(name: str, default: int = 0) -> int:
+    v = os.getenv(name)
+    if v is None or str(v).strip() == "":
         return default
-    return v
-
-
-def _get_int(name: str, default: int = 0) -> int:
-    v = os.getenv(name)
     try:
-        return int(v) if v is not None and v != "" else default
+        return int(str(v).strip())
     except Exception:
         return default
 
-
-def _get_bool(name: str, default: bool = False) -> bool:
+def _env_bool(name: str, default: bool = False) -> bool:
     v = os.getenv(name)
-    if v is None or v == "":
+    if v is None:
         return default
-    return v.strip().lower() in ("1", "true", "yes", "y", "on")
+    v = str(v).strip().lower()
+    if v in ("1", "true", "yes", "y", "on"):
+        return True
+    if v in ("0", "false", "no", "n", "off"):
+        return False
+    return default
 
 
-# -----------------------------
-# Required envs (Railway)
-# -----------------------------
-TELEGRAM_BOT_TOKEN = _get("TELEGRAM_BOT_TOKEN", "")
+# -------------------------
+# REQUIRED (Railway Variables)
+# -------------------------
+TELEGRAM_BOT_TOKEN = _env_str("TELEGRAM_BOT_TOKEN")
+DATABASE_URL = _env_str("DATABASE_URL")
 
-DATABASE_URL = _get("DATABASE_URL", "")
+OWNER_USER_ID = _env_int("OWNER_USER_ID", 0)
+ADMIN_CHAT_ID = _env_int("ADMIN_CHAT_ID", 0)
 
-OWNER_USER_ID = _get_int("OWNER_USER_ID", 0)
-ADMIN_CHAT_ID = _get_int("ADMIN_CHAT_ID", 0)
+DEEPSEEK_API_KEY = _env_str("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = _env_str("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
-# -----------------------------
-# Models / Providers
-# -----------------------------
-# DeepSeek (text + vision)
-DEEPSEEK_API_KEY = _get("DEEPSEEK_API_KEY", "")
-DEEPSEEK_BASE_URL = _get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+# Совместимость: кто-то кладёт модель в TEXT_MODEL, кто-то в DEEPSEEK_MODEL
+DEEPSEEK_MODEL = _env_str("DEEPSEEK_MODEL") or _env_str("TEXT_MODEL", "deepseek-chat")
+DEEPSEEK_VISION_MODEL = _env_str("DEEPSEEK_VISION_MODEL", "deepseek-vl")
 
-# В твоих переменных есть TEXT_MODEL / IMAGE_MODEL — оставляем совместимость:
-TEXT_MODEL = _get("TEXT_MODEL", "deepseek-chat")
-IMAGE_MODEL = _get("IMAGE_MODEL", "flux")
+# Для бесплатного режима можно использовать отдельную модель (если нет — берём основную)
+DEEPSEEK_MODEL_FREE = _env_str("DEEPSEEK_MODEL_FREE", DEEPSEEK_MODEL)
 
-# bot.py импортирует DEEPSEEK_MODEL и DEEPSEEK_MODEL_FREE
-DEEPSEEK_MODEL = _get("DEEPSEEK_MODEL", TEXT_MODEL or "deepseek-chat")
-# Если хочешь отдельную "дешёвую" модель для free — просто задай в env DEEPSEEK_MODEL_FREE
-DEEPSEEK_MODEL_FREE = _get("DEEPSEEK_MODEL_FREE", DEEPSEEK_MODEL)
+STABILITY_API_KEY = _env_str("STABILITY_API_KEY")
+# В логах у тебя ошибка именно на STABILITY_ENDPOINT — добавляем обязательно
+STABILITY_ENDPOINT = _env_str("STABILITY_ENDPOINT", "https://api.stability.ai")
 
-DEEPSEEK_VISION_MODEL = _get("DEEPSEEK_VISION_MODEL", "deepseek-vl")
 
-# -----------------------------
-# Stability AI (images)
-# -----------------------------
-STABILITY_API_KEY = _get("STABILITY_API_KEY", "")
-# Важно: bot.py и stability_image.py ожидают переменную STABILITY_ENDPOINT
-# По умолчанию — Stable Image (Core). Можно переопределить в Railway переменной STABILITY_ENDPOINT.
-STABILITY_ENDPOINT = _get(
-    "STABILITY_ENDPOINT",
-    "https://api.stability.ai/v2beta/stable-image/generate/core",
-)
-STABILITY_OUTPUT_FORMAT = _get("STABILITY_OUTPUT_FORMAT", "png")
+# -------------------------
+# TOKENS / LIMITS
+# -------------------------
+# В логах у тебя была ошибка на MAX_TOKENS — добавляем обязательно
+MAX_TOKENS = _env_int("MAX_TOKENS", 1000)
 
-# -----------------------------
-# Telegram Stars payments
-# -----------------------------
-STARS_CURRENCY = _get("STARS_CURRENCY", "XTR")  # Telegram Stars currency code
+FREE_TEXT_PER_DAY = _env_int("FREE_TEXT_PER_DAY", _env_int("FREE_TEXT", 15))
+FREE_IMG_PER_DAY = _env_int("FREE_IMG_PER_DAY", _env_int("FREE_IMG", 3))
 
-# -----------------------------
-# Limits / Plans
-# -----------------------------
-# Можно управлять лимитами через env:
-FREE_TEXT_PER_DAY = _get_int("FREE_TEXT_PER_DAY", 3)
-FREE_IMG_PER_DAY = _get_int("FREE_IMG_PER_DAY", 1)
 
-SUB_DAYS = _get_int("SUB_DAYS", 30)  # длительность подписки в днях
-PRICE_STARS = _get_int("PRICE_STARS", 299)  # цена START по умолчанию
+# -------------------------
+# STARS / PRICING
+# -------------------------
+# валюта Stars: обычно XTR
+STARS_CURRENCY = _env_str("STARS_CURRENCY", "XTR")
 
+# Совместимость с твоими переменными:
+# PRICE_STARS (одна цена) / или дефолтные 299/599/999
+PRICE_STARS = _env_int("PRICE_STARS", 299)
+
+# Длительность подписки (если у тебя SUB_DAYS — используем её)
+SUB_DAYS = _env_int("SUB_DAYS", 30)
+
+# Пакеты пополнений (для “докупить”)
+TOPUPS = [
+    {"key": "topup_100", "title": "⭐ 100 Stars", "stars": 100},
+    {"key": "topup_300", "title": "⭐ 300 Stars", "stars": 300},
+    {"key": "topup_1000", "title": "⭐ 1000 Stars", "stars": 1000},
+]
+
+# Планы подписки (под это у тебя уже тексты в paywall)
 PLANS = {
-    "free": {
-        "name": {"ru": "FREE", "en": "FREE"},
-        "price_stars": 0,
-        "days": 0,
-        "daily_text": FREE_TEXT_PER_DAY,
-        "daily_img": FREE_IMG_PER_DAY,
-    },
     "start": {
-        "name": {"ru": "START", "en": "START"},
-        "price_stars": PRICE_STARS,
-        "days": SUB_DAYS,
-        "daily_text": 30,
-        "daily_img": 10,
-    },
-    # Спец-тариф для first purchase (если используешь)
-    "start_first": {
-        "name": {"ru": "START (первый платёж)", "en": "START (first purchase)"},
-        "price_stars": max(1, PRICE_STARS - 50),
-        "days": SUB_DAYS,
-        "daily_text": 30,
-        "daily_img": 10,
+        "key": "start",
+        "title": "START",
+        "stars": _env_int("PLAN_START_STARS", 299),
+        "days": _env_int("PLAN_START_DAYS", SUB_DAYS),
     },
     "pro": {
-        "name": {"ru": "PRO", "en": "PRO"},
-        "price_stars": _get_int("PRICE_STARS_PRO", 599),
-        "days": SUB_DAYS,
-        "daily_text": 80,
-        "daily_img": 25,
+        "key": "pro",
+        "title": "PRO",
+        "stars": _env_int("PLAN_PRO_STARS", 599),
+        "days": _env_int("PLAN_PRO_DAYS", SUB_DAYS),
     },
     "ultra": {
-        "name": {"ru": "ULTRA", "en": "ULTRA"},
-        "price_stars": _get_int("PRICE_STARS_ULTRA", 999),
-        "days": SUB_DAYS,
-        "daily_text": 200,
-        "daily_img": 60,
+        "key": "ultra",
+        "title": "ULTRA",
+        "stars": _env_int("PLAN_ULTRA_STARS", 999),
+        "days": _env_int("PLAN_ULTRA_DAYS", SUB_DAYS),
     },
 }
 
-# -----------------------------
-# Topups (покупка пакетов)
-# -----------------------------
-TOPUPS = {
-    "mini": {
-        "title": {"ru": "Мини-пакет", "en": "Mini pack"},
-        "stars": _get_int("TOPUP_MINI_STARS", 79),
-        "add_text": _get_int("TOPUP_MINI_ADD_TEXT", 15),
-        "add_img": _get_int("TOPUP_MINI_ADD_IMG", 3),
-    },
-    "plus": {
-        "title": {"ru": "Плюс-пакет", "en": "Plus pack"},
-        "stars": _get_int("TOPUP_PLUS_STARS", 149),
-        "add_text": _get_int("TOPUP_PLUS_ADD_TEXT", 35),
-        "add_img": _get_int("TOPUP_PLUS_ADD_IMG", 7),
-    },
-    "max": {
-        "title": {"ru": "Макс-пакет", "en": "Max pack"},
-        "stars": _get_int("TOPUP_MAX_STARS", 249),
-        "add_text": _get_int("TOPUP_MAX_ADD_TEXT", 70),
-        "add_img": _get_int("TOPUP_MAX_ADD_IMG", 15),
-    },
-    # "week_pack" используется в bot.py как спец-оффер (A/B), оставляем как базовый fallback
-    "week_pack": {
-        "title": {"ru": "Недельный пак", "en": "Weekly pack"},
-        "stars": _get_int("TOPUP_WEEK_STARS", 199),
-        "add_text": _get_int("TOPUP_WEEK_ADD_TEXT", 50),
-        "add_img": _get_int("TOPUP_WEEK_ADD_IMG", 10),
-    },
-}
 
-# -----------------------------
-# Monetization / referrals / payouts
-# -----------------------------
-REF_PERCENT = _get_int("REF_PERCENT", 20)  # процент реферального начисления
-MIN_PAYOUT_STARS = _get_int("MIN_PAYOUT_STARS", 300)
-PAYOUT_COOLDOWN_HOURS = _get_int("PAYOUT_COOLDOWN_HOURS", 72)
-REF_REQUIRE_FIRST_PAYMENT = _get_bool("REF_REQUIRE_FIRST_PAYMENT", True)
+# -------------------------
+# REFERRALS / PAYOUT (нужно db.py)
+# -------------------------
+# db.py у тебя импортирует это:
+REF_PERCENT = _env_int("REF_PERCENT", 20)                 # процент рефералки
+MIN_PAYOUT_STARS = _env_int("MIN_PAYOUT_STARS", 100)      # минимальная сумма к выводу
+PAYOUT_COOLDOWN_HOURS = _env_int("PAYOUT_COOLDOWN_HOURS", 24)
+REF_REQUIRE_FIRST_PAYMENT = _env_bool("REF_REQUIRE_FIRST_PAYMENT", True)
+REVENUE_DAYS_DEFAULT = _env_int("REVENUE_DAYS_DEFAULT", 30)
 
-# bot.py импортирует REVENUE_DAYS_DEFAULT
-REVENUE_DAYS_DEFAULT = _get_int("REVENUE_DAYS_DEFAULT", 7)
 
-# -----------------------------
-# Tokens / caching
-# -----------------------------
-# bot.py импортирует MAX_TOKENS как dict и потом делает MAX_TOKENS.get(plan_key, ...)
-MAX_TOKENS = {
-    "free": _get_int("MAX_TOKENS_FREE", 700),
-    "start": _get_int("MAX_TOKENS_START", 1200),
-    "pro": _get_int("MAX_TOKENS_PRO", 1600),
-    "ultra": _get_int("MAX_TOKENS_ULTRA", 2200),
-}
+# -------------------------
+# CACHE (если в bot.py включено)
+# -------------------------
+ENABLE_TEXT_CACHE = _env_bool("ENABLE_TEXT_CACHE", True)
+ENABLE_IMAGE_CACHE = _env_bool("ENABLE_IMAGE_CACHE", True)
+TEXT_CACHE_TTL_DAYS = _env_int("TEXT_CACHE_TTL_DAYS", 7)
+IMAGE_CACHE_TTL_DAYS = _env_int("IMAGE_CACHE_TTL_DAYS", 7)
 
-ENABLE_TEXT_CACHE = _get_bool("ENABLE_TEXT_CACHE", True)
-ENABLE_IMAGE_CACHE = _get_bool("ENABLE_IMAGE_CACHE", False)  # если появится image-cache
-TEXT_CACHE_TTL_DAYS = _get_int("TEXT_CACHE_TTL_DAYS", 30)
-IMAGE_CACHE_TTL_DAYS = _get_int("IMAGE_CACHE_TTL_DAYS", 30)
+
+# -------------------------
+# IMAGE MODEL (для логов/совместимости)
+# -------------------------
+# В Railway у тебя есть IMAGE_MODEL / TEXT_MODEL — оставим оба сценария
+IMAGE_MODEL = _env_str("IMAGE_MODEL", "flux")
+
+# Небольшой лог при старте (не критично)
+if __name__ == "__main__":
+    print("Config loaded")
+    print("DEEPSEEK_MODEL:", DEEPSEEK_MODEL)
+    print("DEEPSEEK_VISION_MODEL:", DEEPSEEK_VISION_MODEL)
+    print("IMAGE_MODEL:", IMAGE_MODEL)
+    print("MAX_TOKENS:", MAX_TOKENS)
