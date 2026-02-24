@@ -1,14 +1,15 @@
 # config.py
 import os
 
-def _env(name: str, default=None):
-    v = os.getenv(name)
-    if v is None or v == "":
+def _env(key: str, default: str | None = None) -> str | None:
+    v = os.getenv(key)
+    if v is None:
         return default
-    return v
+    v = v.strip()
+    return v if v != "" else default
 
-def _env_int(name: str, default: int) -> int:
-    v = _env(name, None)
+def _env_int(key: str, default: int) -> int:
+    v = _env(key)
     if v is None:
         return default
     try:
@@ -16,127 +17,98 @@ def _env_int(name: str, default: int) -> int:
     except ValueError:
         return default
 
-def _env_float(name: str, default: float) -> float:
-    v = _env(name, None)
+def _env_bool(key: str, default: bool = False) -> bool:
+    v = _env(key)
     if v is None:
         return default
-    try:
-        return float(v)
-    except ValueError:
-        return default
+    return v.lower() in ("1", "true", "yes", "y", "on")
 
-def _env_bool(name: str, default: bool = False) -> bool:
-    v = _env(name, None)
-    if v is None:
-        return default
-    return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
-
-# =========================
-# Telegram
-# =========================
+# --- Required / main ---
 TELEGRAM_BOT_TOKEN = _env("TELEGRAM_BOT_TOKEN", "")
-if not TELEGRAM_BOT_TOKEN:
-    # Лучше упасть с понятной ошибкой, чем молча
-    raise RuntimeError("Missing TELEGRAM_BOT_TOKEN env var")
+DATABASE_URL = _env("DATABASE_URL", _env("DATABASE_URL".lower(), "")) or ""
 
-ADMIN_CHAT_ID = _env_int("ADMIN_CHAT_ID", 0)
-OWNER_USER_ID = _env_int("OWNER_USER_ID", 0)
+# Модели (то, что ты задаёшь в Railway Variables)
+TEXT_MODEL = _env("TEXT_MODEL", "openai")          # например: openai / deepseek
+IMAGE_MODEL = _env("IMAGE_MODEL", "flux")         # например: flux / sd3 / stability
 
-# =========================
-# Database
-# =========================
-DATABASE_URL = _env("DATABASE_URL", "")
-if not DATABASE_URL:
-    # Если ты реально используешь Postgres — лучше требовать.
-    # Если не используешь — можно убрать raise.
-    raise RuntimeError("Missing DATABASE_URL env var")
-
-# =========================
-# Models / Providers
-# =========================
-# Текстовая модель (в твоих переменных есть TEXT_MODEL)
-TEXT_MODEL = _env("TEXT_MODEL", "deepseek-chat")
-
-# Для совместимости со старым кодом (часто используется как "провайдер/модель")
-DEEPSEEK_API_KEY = _env("DEEPSEEK_API_KEY", "")
+# --- DeepSeek ---
 DEEPSEEK_BASE_URL = _env("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-DEEPSEEK_MODEL = _env("DEEPSEEK_MODEL", TEXT_MODEL)
-DEEPSEEK_MODEL_FREE = _env("DEEPSEEK_MODEL_FREE", DEEPSEEK_MODEL)
-DEEPSEEK_VISION_MODEL = _env("DEEPSEEK_VISION_MODEL", "deepseek-vision")
+DEEPSEEK_API_KEY = _env("DEEPSEEK_API_KEY", "")
+DEEPSEEK_MODEL = _env("DEEPSEEK_MODEL", "deepseek-chat")
+DEEPSEEK_VISION_MODEL = _env("DEEPSEEK_VISION_MODEL", "deepseek-vl")
 
-# =========================
-# Image generation (Stability)
-# =========================
+# --- Stability (картинки) ---
 STABILITY_API_KEY = _env("STABILITY_API_KEY", "")
-# ВАЖНО: это имя у тебя просит код (в логах было can’t import STABILITY_ENDPOINT)
-STABILITY_ENDPOINT = _env("STABILITY_ENDPOINT", "https://api.stability.ai")
-# Формат выдачи (для stability_image.py)
-STABILITY_OUTPUT_FORMAT = _env("STABILITY_OUTPUT_FORMAT", "png")
 
-# Для твоих переменных Railway
-IMAGE_MODEL = _env("IMAGE_MODEL", _env("IMAGE_MODEL", "flux"))
+# Если в боте выбран flux — по умолчанию ставим flux endpoint (можешь переопределить переменной STABILITY_ENDPOINT)
+_default_stability_endpoint = "https://api.stability.ai/v2beta/stable-image/generate/sd3"
+if (IMAGE_MODEL or "").lower() == "flux":
+    _default_stability_endpoint = "https://api.stability.ai/v2beta/stable-image/generate/flux"
 
-# =========================
-# Limits / performance
-# =========================
+STABILITY_ENDPOINT = _env("STABILITY_ENDPOINT", _default_stability_endpoint)
+
+# --- Limits / cache ---
 MAX_TOKENS = _env_int("MAX_TOKENS", 1000)
 
-ENABLE_USER_CACHE = _env_bool("ENABLE_USER_CACHE", True)
-ENABLE_DB_CACHE = _env_bool("ENABLE_DB_CACHE", True)
+ENABLE_TEXT_CACHE = _env_bool("ENABLE_TEXT_CACHE", True)
+TEXT_CACHE_TTL_DAYS = _env_int("TEXT_CACHE_TTL_DAYS", 7)
 
-# =========================
-# Freemium / subscription
-# =========================
-FREE_TEXT_PER_DAY = _env_int("FREE_TEXT_PER_DAY", 10)
-FREE_IMG_PER_DAY = _env_int("FREE_IMG_PER_DAY", 3)
+ENABLE_IMAGE_CACHE = _env_bool("ENABLE_IMAGE_CACHE", True)
+IMAGE_CACHE_TTL_DAYS = _env_int("IMAGE_CACHE_TTL_DAYS", 7)
 
-# Подписка (дней)
-SUBSCRIBE_DAYS_DEFAULT = _env_int("SUBSCRIBE_DAYS_DEFAULT", _env_int("SUB_DAYS", 30))
-SUB_DAYS = _env_int("SUB_DAYS", SUBSCRIBE_DAYS_DEFAULT)
+# --- Monetization / referrals ---
+REF_PERCENT = _env_int("REF_PERCENT", 20)              # % от пополнений/покупок
+MIN_PAYOUT_STARS = _env_int("MIN_PAYOUT_STARS", 1000)  # минимум к выводу
+PAYOUT_COOLDOWN_HOURS = _env_int("PAYOUT_COOLDOWN_HOURS", 24)
+REF_REQUIRE_FIRST_PAYMENT = _env_bool("REF_REQUIRE_FIRST_PAYMENT", True)
 
-# Валюта
-STARS_CURRENCY = _env("STARS_CURRENCY", "⭐")
-PRICE_STARS = _env_int("PRICE_STARS", 0)
+# --- Plans / Topups ---
+# Можно оставить дефолты — они просто нужны, чтобы bot.py не падал при импорте.
+# Если хочешь, поменяй цены/лимиты под себя.
 
-# =========================
-# Plans / Topups (монетизация)
-# =========================
-# Базовые планы (можешь потом менять цены/дни)
+SUB_DAYS = _env_int("SUB_DAYS", 30)
+PRICE_STARS = _env_int("PRICE_STARS", 299)  # базовая цена (если используешь одну)
+
 PLANS = {
-    "START": {
-        "title": "START",
-        "days": _env_int("PLAN_START_DAYS", 30),
-        "price_stars": _env_int("PLAN_START_PRICE", 299),
+    # В bot.py явно используется PLANS["start"] и PLANS["start_first"]
+    "start_first": {
+        "name": {"ru": "START (первый раз)", "en": "START (first time)"},
+        "price_stars": PRICE_STARS,
+        "days": SUB_DAYS,
+        "daily_text": _env_int("FREE_TEXT_PER_DAY", 20),
+        "daily_img": _env_int("FREE_IMG_PER_DAY", 3),
     },
-    "PRO": {
-        "title": "PRO",
-        "days": _env_int("PLAN_PRO_DAYS", 30),
-        "price_stars": _env_int("PLAN_PRO_PRICE", 599),
+    "start": {
+        "name": {"ru": "START", "en": "START"},
+        "price_stars": PRICE_STARS,
+        "days": SUB_DAYS,
+        "daily_text": _env_int("FREE_TEXT_PER_DAY", 20),
+        "daily_img": _env_int("FREE_IMG_PER_DAY", 3),
     },
-    "ULTRA": {
-        "title": "ULTRA",
-        "days": _env_int("PLAN_ULTRA_DAYS", 30),
-        "price_stars": _env_int("PLAN_ULTRA_PRICE", 999),
+    "pro": {
+        "name": {"ru": "PRO", "en": "PRO"},
+        "price_stars": _env_int("PRO_PRICE_STARS", 599),
+        "days": SUB_DAYS,
+        "daily_text": _env_int("PRO_TEXT_PER_DAY", 200),
+        "daily_img": _env_int("PRO_IMG_PER_DAY", 20),
+    },
+    "ultra": {
+        "name": {"ru": "ULTRA", "en": "ULTRA"},
+        "price_stars": _env_int("ULTRA_PRICE_STARS", 999),
+        "days": SUB_DAYS,
+        "daily_text": _env_int("ULTRA_TEXT_PER_DAY", 1000),
+        "daily_img": _env_int("ULTRA_IMG_PER_DAY", 100),
     },
 }
 
-# Пакеты докупки (если у тебя есть логика “докупить”)
-TOPUPS = [
-    {"code": "topup_100", "title": "100⭐", "stars": 100},
-    {"code": "topup_300", "title": "300⭐", "stars": 300},
-    {"code": "topup_500", "title": "500⭐", "stars": 500},
-]
+TOPUPS = {
+    # bot.py ожидает структуру: TOPUPS[key]["title"]["ru"], TOPUPS[key]["stars"]
+    "small": {"title": {"ru": "Пополнить 100 ⭐", "en": "Top up 100 ⭐"}, "stars": 100},
+    "mid": {"title": {"ru": "Пополнить 300 ⭐", "en": "Top up 300 ⭐"}, "stars": 300},
+    "big": {"title": {"ru": "Пополнить 1000 ⭐", "en": "Top up 1000 ⭐"}, "stars": 1000},
+}
 
-# =========================
-# Referral / payouts (если используется db.py)
-# =========================
-REF_PERCENT = _env_float("REF_PERCENT", 0.10)  # 10%
-MIN_PAYOUT_STARS = _env_int("MIN_PAYOUT_STARS", 1000)
-PAYOUT_COOLDOWN_HOURS = _env_int("PAYOUT_COOLDOWN_HOURS", 72)
-REF_REQUIRE_FIRST_PAYMENT = _env_bool("REF_REQUIRE_FIRST_PAYMENT", True)
-
-REVENUE_DAYS_DEFAULT = _env_int("REVENUE_DAYS_DEFAULT", 30)
-
+# Полезно, чтобы в логах сразу было видно что config реально подхватился
 print("Config loaded")
 print("TEXT_MODEL:", TEXT_MODEL)
 print("IMAGE_MODEL:", IMAGE_MODEL)
