@@ -46,3 +46,9 @@ def paywall_message_limit():
 def paywall_message_soft_variant(user_id: int, winner: str | None = None):
     v, txt = paywall_text_for_user(user_id, winner=winner)
     return v, txt
+def paywall_trigger_count_for_user(user_id: int) -> int:
+    """
+    Возвращает количество триггеров paywall для пользователя.
+    Сейчас используется как заглушка (совместимость с bot.py).
+    """
+    return 0
